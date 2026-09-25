@@ -3,14 +3,33 @@
 #include <unordered_map>
 
 static const std::unordered_map<std::string, TokenType> KEYWORDS = {
+  // conditional
   {"IF", TokenType::KEYWORD_IF},
   {"THEN", TokenType::KEYWORD_THEN},
   {"ELSE", TokenType::KEYWORD_ELSE},
   {"ENDIF", TokenType::KEYWORD_ENDIF},
-  {"OUTPUT", TokenType::KEYWORD_OUTPUT},
+
+  // loops
   {"WHILE", TokenType::KEYWORD_WHILE},
   {"DO", TokenType::KEYWORD_DO},
-  {"ENDWHILE", TokenType::KEYWORD_ENDWHILE}
+  {"ENDWHILE", TokenType::KEYWORD_ENDWHILE},
+
+  {"FOR", TokenType::KEYWORD_FOR},
+  {"TO", TokenType::KEYWORD_TO},
+  {"STEP", TokenType::KEYWORD_STEP},
+  {"NEXT", TokenType::KEYWORD_NEXT},
+
+  {"REPEAT", TokenType::KEYWORD_REPEAT},
+  {"UNTIL", TokenType::KEYWORD_UNTIL},
+
+  // IO
+  {"INPUT", TokenType::KEYWORD_INPUT},
+  {"OUTPUT", TokenType::KEYWORD_OUTPUT},
+
+  // logical
+  {"AND", TokenType::KEYWORD_AND},
+  {"OR", TokenType::KEYWORD_OR},
+  {"NOT", TokenType::KEYWORD_NOT}
 };
 
 Lexer::Lexer(const std::string& source) : source(source) {}
@@ -25,7 +44,14 @@ char Lexer::peek() const {
 }
 
 char Lexer::advance() {
-  return source[cursor++];
+  char c = source[cursor++];
+  column++;
+  if (c == '\n')
+  {
+    line++;
+    column = 1;
+  }
+  return c;
 }
 
 void Lexer::skipWhitespaceAndComments() {
@@ -43,16 +69,46 @@ void Lexer::skipWhitespaceAndComments() {
   }
 }
 
+void Lexer::refreshTokenStart() {
+  start_line = line;
+  start_column = column;
+}
+
 Token Lexer::makeToken(TokenType type, const std::string &value) {
-  return Token(type, value, line);
+  return Token(type, value, start_line, start_column);
 }
 
 Token Lexer::lexNumber() {
   std::string numStr;
-  while (!isAtEnd() && (std::isdigit(peek()) || peek() == '.')) {
+
+  while (!isAtEnd() && std::isdigit(peek())) {
     numStr += advance();
   }
-  return makeToken(TokenType::NUMBER, numStr);
+
+  if (!isAtEnd() && peek() == '.')
+  {
+    numStr += advance();
+
+    if (isAtEnd() || !std::isdigit(peek())) {
+      return makeToken(TokenType::UNKNOWN, numStr);
+    }
+
+    while (!isAtEnd() && std::isdigit(peek())) {
+      numStr += advance();
+    }
+
+    if (!isAtEnd() && peek() == '.') {
+      while (!isAtEnd() && (std::isdigit(peek()) || peek() == '.'))
+      {
+        numStr += advance();
+      }
+
+      return makeToken(TokenType::UNKNOWN, numStr);
+    }
+
+    return makeToken(TokenType::REAL, numStr);
+  }
+  return makeToken(TokenType::INTEGER, numStr);
 }
 
 Token Lexer::lexIdentifierOrKeyword() {
@@ -71,8 +127,7 @@ Token Lexer::lexIdentifierOrKeyword() {
 Token Lexer::lexString() {
   advance();
   std::string text;
-  while (!isAtEnd() && peek() != '"') {
-    if(peek() == '\n') line++;
+  while (!isAtEnd() && peek() != '\"') {
     text += advance();
   }
   if(!isAtEnd()) advance();
@@ -85,11 +140,13 @@ std::vector<Token> Lexer::tokenize() {
   while (!isAtEnd()) {
     skipWhitespaceAndComments();
     if(isAtEnd()) break;
-    char c = peek();
 
+    refreshTokenStart();
+
+    char c = peek();
+    
     if (c == '\n') {
       tokens.push_back(makeToken(TokenType::NEWLINE, "\n"));
-      line++;
       advance();
     }
     else if (std::isdigit(c)) {
@@ -104,9 +161,19 @@ std::vector<Token> Lexer::tokenize() {
     }
     else if (c == '>' || c == '<' || c == '=' || c == '+' || c == '-' || c == '*' || c == '/') {
       std::string op(1, advance());
-      if (!isAtEnd() && peek() == '=') op += advance();
+      if (!isAtEnd() && (peek() == '=' || (c == '<' && peek() == '>'))) op += advance();
 
-      tokens.push_back(makeToken(TokenType::OPERATOR, op));
+      if (op == ">") tokens.push_back(makeToken(TokenType::GREATER_THAN, op));
+      else if (op == "<") tokens.push_back(makeToken(TokenType::LESS_THAN, op));
+      else if (op == ">=") tokens.push_back(makeToken(TokenType::GREATER_EQUAL, op));
+      else if (op == "<=") tokens.push_back(makeToken(TokenType::LESS_EQUAL, op));
+      else if (op == "=") tokens.push_back(makeToken(TokenType::EQUAL, op));
+      else if (op == "+") tokens.push_back(makeToken(TokenType::PLUS, op));
+      else if (op == "-") tokens.push_back(makeToken(TokenType::MINUS, op));
+      else if (op == "*") tokens.push_back(makeToken(TokenType::MULTIPLY, op));
+      else if (op == "/") tokens.push_back(makeToken(TokenType::DIVIDE, op));
+      else if (op == "<>") tokens.push_back(makeToken(TokenType::NOT_EQUAL, op));
+      else tokens.push_back(makeToken(TokenType::UNKNOWN, op));
     }
     else {
       std::string unknown(1, advance());
@@ -114,6 +181,7 @@ std::vector<Token> Lexer::tokenize() {
     }
   }
 
+  refreshTokenStart();
   tokens.push_back(makeToken(TokenType::END_OF_FILE, ""));
   return tokens;
 }
