@@ -4,7 +4,8 @@
 #include <string>
 #include <vector>
 
-enum class TokenType {
+enum class TokenType
+{
   // conditional
   KEYWORD_IF,
   KEYWORD_THEN,
@@ -53,7 +54,7 @@ enum class TokenType {
   KEYWORD_AND,
   KEYWORD_OR,
   KEYWORD_NOT,
-  
+
   // structural things
   NEWLINE,
   END_OF_FILE,
@@ -62,7 +63,8 @@ enum class TokenType {
   UNKNOWN
 };
 
-struct Token {
+struct Token
+{
   TokenType type;
   std::string value;
   int line;
@@ -71,32 +73,33 @@ struct Token {
   Token(TokenType t, const std::string& v, int l, int c) : type(t), value(v), line(l), column(c) {}
 };
 
-class Lexer {
-  public:
-    explicit Lexer(const std::string& source);
-    std::vector<Token> tokenize();
+class Lexer
+{
+public:
+  explicit Lexer(const std::string& source);
+  std::vector<Token> tokenize();
 
-  private:
-    std::string source;
-    size_t cursor = 0;
-    int line = 1;
-    int column = 1;
-    int start_line = 1;
-    int start_column = 1;
+private:
+  std::string source;
+  size_t cursor = 0;
+  int line = 1;
+  int column = 1;
+  int start_line = 1;
+  int start_column = 1;
 
-    char peek() const;
-    char advance();
-    void advanceLeftArrow();
-    bool isAtEnd() const;
-    void skipWhitespaceAndComments();
+  char peek() const;
+  char advance();
+  void advanceLeftArrow();
+  bool isAtEnd() const;
+  void skipWhitespaceAndComments();
 
-    void refreshTokenStart();
-    Token makeToken(TokenType type, const std::string& value);
-    Token lexNumber();
-    Token lexIdentifierOrKeyword();
-    Token lexString();
+  void refreshTokenStart();
+  Token makeToken(TokenType type, const std::string& value);
+  Token lexNumber();
+  Token lexIdentifierOrKeyword();
+  Token lexString();
 
-    bool tryUTF8LeftArrow();
+  bool tryUTF8LeftArrow();
 };
 
 #endif
