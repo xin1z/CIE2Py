@@ -149,12 +149,22 @@ Token Lexer::lexIdentifierOrKeyword() {
 
 Token Lexer::lexString() {
   advance();
-  std::string text;
-  while (!isAtEnd() && peek() != '\"') {
+  std::string text = "\"";
+
+  while (!isAtEnd() && peek() != '\"' && peek() != '\n') {
     text += advance();
   }
-  if(!isAtEnd()) advance();
-  return makeToken(TokenType::STRING, "\"" + text + "\"");
+  if(!isAtEnd())
+  {
+    char c = advance();
+    if (c == '\"')
+    {
+      text += '\"';
+
+      return makeToken(TokenType::STRING, text);
+    }
+  }
+  return makeToken(TokenType::UNKNOWN, text);
 }
 
 std::vector<Token> Lexer::tokenize() {
