@@ -54,6 +54,29 @@ char Lexer::advance() {
   return c;
 }
 
+void Lexer::advanceLeftArrow() {
+  advance();
+  advance();
+  advance();
+  column -= 2;
+}
+
+bool Lexer::tryUTF8LeftArrow() {
+  if (static_cast<unsigned char>(peek()) != 0xE2)
+  {
+    return false;
+  }
+  if (cursor + 2 >= source.size())
+  {
+    return false;
+  }
+  if (static_cast<unsigned char>(source[cursor + 1]) != 0x86 || static_cast<unsigned char>(source[cursor + 2]) != 0x90)
+  {
+    return false;
+  }
+  return true;
+}
+
 void Lexer::skipWhitespaceAndComments() {
   while (!isAtEnd()) {
     char c = peek();
@@ -174,6 +197,11 @@ std::vector<Token> Lexer::tokenize() {
       else if (op == "/") tokens.push_back(makeToken(TokenType::DIVIDE, op));
       else if (op == "<>") tokens.push_back(makeToken(TokenType::NOT_EQUAL, op));
       else tokens.push_back(makeToken(TokenType::UNKNOWN, op));
+    }
+    else if (tryUTF8LeftArrow())
+    {
+      advanceLeftArrow();
+      tokens.push_back(makeToken(TokenType::ASSIGN, "\u2190"));
     }
     else {
       std::string unknown(1, advance());

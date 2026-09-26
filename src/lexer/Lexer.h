@@ -86,6 +86,7 @@ class Lexer {
 
     char peek() const;
     char advance();
+    void advanceLeftArrow();
     bool isAtEnd() const;
     void skipWhitespaceAndComments();
 
@@ -94,6 +95,8 @@ class Lexer {
     Token lexNumber();
     Token lexIdentifierOrKeyword();
     Token lexString();
+
+    bool tryUTF8LeftArrow();
 };
 
 #endif
