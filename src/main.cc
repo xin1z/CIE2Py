@@ -17,6 +17,13 @@ const char* tokenTypeToString(TokenType type)
   case TokenType::KEYWORD_ENDIF:
     return "KEYWORD_ENDIF";
 
+  case TokenType::KEYWORD_CASE:
+    return "KEYWORD_CASE";
+  case TokenType::KEYWORD_OTHERWISE:
+    return "KEYWORD_OTHERWISE";
+  case TokenType::KEYWORD_ENDCASE:
+    return "KEYWORD_ENDCASE";
+
   // loops
   case TokenType::KEYWORD_WHILE:
     return "KEYWORD_WHILE";
@@ -52,6 +59,32 @@ const char* tokenTypeToString(TokenType type)
     return "REAL";
   case TokenType::STRING:
     return "STRING";
+  case TokenType::CHAR:
+    return "CHAR";
+  case TokenType::BOOLEAN:
+    return "BOOLEAN";
+
+  // type keywords
+  case TokenType::KEYWORD_INTEGER:
+    return "KEYWORD_INTEGER";
+  case TokenType::KEYWORD_REAL:
+    return "KEYWORD_REAL";
+  case TokenType::KEYWORD_STRING:
+    return "KEYWORD_STRING";
+  case TokenType::KEYWORD_CHAR:
+    return "KEYWORD_CHAR";
+  case TokenType::KEYWORD_BOOLEAN:
+    return "KEYWORD_BOOLEAN";
+
+  // declaration properties
+  case TokenType::KEYWORD_DECLARE:
+    return "KEYWORD_DECLARE";
+  case TokenType::KEYWORD_CONSTANT:
+    return "KEYWORD_CONSTANT";
+  case TokenType::KEYWORD_ARRAY:
+    return "KEYWORD_ARRAY";
+  case TokenType::KEYWORD_OF:
+    return "KEYWORD_OF";
 
   // operators
   case TokenType::ASSIGN:
@@ -77,6 +110,28 @@ const char* tokenTypeToString(TokenType type)
   case TokenType::GREATER_EQUAL:
     return "GREATER_EQUAL";
 
+  // Special operators & functions
+  case TokenType::KEYWORD_MOD:
+    return "KEYWORD_MOD";
+  case TokenType::KEYWORD_DIV:
+    return "KEYWORD_DIV";
+  case TokenType::POWER:
+    return "POWER";
+  case TokenType::KEYWORD_ROUND:
+    return "KEYWORD_ROUND";
+  case TokenType::KEYWORD_RANDOM:
+    return "KEYWORD_RANDOM";
+
+  // string functions
+  case TokenType::KEYWORD_LENGTH:
+    return "KEYWORD_LENGTH";
+  case TokenType::KEYWORD_SUBSTRING:
+    return "KEYWORD_SUBSTRING";
+  case TokenType::KEYWORD_LCASE:
+    return "KEYWORD_LCASE";
+  case TokenType::KEYWORD_UCASE:
+    return "KEYWORD_UCASE";
+
   // logical
   case TokenType::KEYWORD_AND:
     return "KEYWORD_AND";
@@ -84,6 +139,20 @@ const char* tokenTypeToString(TokenType type)
     return "KEYWORD_OR";
   case TokenType::KEYWORD_NOT:
     return "KEYWORD_NOT";
+
+  // delimiters
+  case TokenType::COLON:
+    return "COLON";
+  case TokenType::COMMA:
+    return "COMMA";
+  case TokenType::LPAREN:
+    return "LPAREN";
+  case TokenType::RPAREN:
+    return "RPAREN";
+  case TokenType::LBRACKET:
+    return "LBRACKET";
+  case TokenType::RBRACKET:
+    return "RBRACKET";
 
   // structural
   case TokenType::NEWLINE:
@@ -100,23 +169,30 @@ const char* tokenTypeToString(TokenType type)
 
 int main()
 {
-  const std::string source = R"(IF score >= 90 THEN
-  OUTPUT "Excellent"
+  const std::string source = R"(// Declarations & Literals Test
+DECLARE score : INTEGER
+DECLARE name : STRING
+DECLARE grade : CHAR
+DECLARE isPassed : BOOLEAN
+DECLARE scores : ARRAY[1:10] OF INTEGER
+
+score <- 85
+grade <- 'A'
+isPassed <- TRUE
+
+// Logic & Built-in functions Test
+IF isPassed AND (score MOD 2 = 0) THEN
+  OUTPUT UCASE(name), " score is ", score ^ 2
 ELSE
-  OUTPUT "Try again"
+  OUTPUT "Keep trying"
 ENDIF
 
-FOR i ← 1 TO 10 STEP 2
-  OUTPUT i
-NEXT
-
-x ← 123
-y ← 3.14
-z ← 123.45.67
-
-IF x <> y AND x < 200 THEN
-  OUTPUT "Test"
-ENDIF
+// Case Statement Test
+CASE OF grade
+  'A': OUTPUT "Excellent"
+  'B': OUTPUT "Good"
+  OTHERWISE OUTPUT "Other"
+ENDCASE
 )";
 
   Lexer lexer(source);
@@ -124,8 +200,13 @@ ENDIF
 
   for (const Token& token : tokens)
   {
-    std::cout << token.line << ":" << token.column << "  " << tokenTypeToString(token.type)
-              << "  \"" << token.value << "\"\n";
+    if (token.type == TokenType::NEWLINE)
+      std::cout << token.line << ":" << token.column << "\t" << tokenTypeToString(token.type)
+                << "\t\"" << "\\n"
+                << "\"\n";
+    else
+      std::cout << token.line << ":" << token.column << "\t" << tokenTypeToString(token.type)
+                << "\t\"" << token.value << "\"\n";
   }
 
   return 0;
