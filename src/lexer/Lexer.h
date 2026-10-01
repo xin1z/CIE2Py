@@ -12,6 +12,10 @@ enum class TokenType
   KEYWORD_ELSE,
   KEYWORD_ENDIF,
 
+  KEYWORD_CASE,
+  KEYWORD_OTHERWISE,
+  KEYWORD_ENDCASE,
+
   // loops
   KEYWORD_WHILE,
   KEYWORD_DO,
@@ -34,6 +38,20 @@ enum class TokenType
   INTEGER,
   REAL,
   STRING,
+  CHAR,
+  BOOLEAN,
+
+  KEYWORD_INTEGER,
+  KEYWORD_REAL,
+  KEYWORD_STRING,
+  KEYWORD_CHAR,
+  KEYWORD_BOOLEAN,
+
+  // properties of literals
+  KEYWORD_DECLARE,
+  KEYWORD_CONSTANT,
+  KEYWORD_ARRAY,
+  KEYWORD_OF,
 
   // operators
   ASSIGN,
@@ -50,6 +68,19 @@ enum class TokenType
   GREATER_THAN,
   GREATER_EQUAL,
 
+  // Special operators
+  KEYWORD_MOD,
+  KEYWORD_DIV,
+  POWER,
+  KEYWORD_ROUND,
+  KEYWORD_RANDOM,
+
+  // string
+  KEYWORD_LENGTH,
+  KEYWORD_SUBSTRING,
+  KEYWORD_LCASE,
+  KEYWORD_UCASE,
+
   // logical
   KEYWORD_AND,
   KEYWORD_OR,
@@ -58,6 +89,14 @@ enum class TokenType
   // structural things
   NEWLINE,
   END_OF_FILE,
+
+  // delimiters
+  COLON,
+  COMMA,
+  LPAREN,
+  RPAREN,
+  LBRACKET,
+  RBRACKET,
 
   // yeah I don't know
   UNKNOWN
@@ -97,6 +136,7 @@ private:
   Token makeToken(TokenType type, const std::string& value);
   Token lexNumber();
   Token lexIdentifierOrKeyword();
+  Token lexChar();
   Token lexString();
 
   bool tryUTF8LeftArrow();

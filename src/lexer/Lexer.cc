@@ -9,6 +9,10 @@ static const std::unordered_map<std::string, TokenType> KEYWORDS = {
   {"ELSE", TokenType::KEYWORD_ELSE},
   {"ENDIF", TokenType::KEYWORD_ENDIF},
 
+  {"CASE", TokenType::KEYWORD_CASE},
+  {"OTHERWISE", TokenType::KEYWORD_OTHERWISE},
+  {"ENDCASE", TokenType::KEYWORD_ENDCASE},
+
   // loops
   {"WHILE", TokenType::KEYWORD_WHILE},
   {"DO", TokenType::KEYWORD_DO},
@@ -25,6 +29,32 @@ static const std::unordered_map<std::string, TokenType> KEYWORDS = {
   // IO
   {"INPUT", TokenType::KEYWORD_INPUT},
   {"OUTPUT", TokenType::KEYWORD_OUTPUT},
+
+  // declaration keywords
+  {"DECLARE", TokenType::KEYWORD_DECLARE},
+  {"CONSTANT", TokenType::KEYWORD_CONSTANT},
+  {"ARRAY", TokenType::KEYWORD_ARRAY},
+  {"OF", TokenType::KEYWORD_OF},
+
+  {"INTEGER", TokenType::KEYWORD_INTEGER},
+  {"REAL", TokenType::KEYWORD_REAL},
+  {"STRING", TokenType::KEYWORD_STRING},
+  {"CHAR", TokenType::KEYWORD_CHAR},
+  {"BOOLEAN", TokenType::KEYWORD_BOOLEAN},
+
+  // boolean literals
+  {"TRUE", TokenType::BOOLEAN},
+  {"FALSE", TokenType::BOOLEAN},
+
+  // operators & built-in functions
+  {"MOD", TokenType::KEYWORD_MOD},
+  {"DIV", TokenType::KEYWORD_DIV},
+  {"ROUND", TokenType::KEYWORD_ROUND},
+  {"RANDOM", TokenType::KEYWORD_RANDOM},
+  {"LENGTH", TokenType::KEYWORD_LENGTH},
+  {"SUBSTRING", TokenType::KEYWORD_SUBSTRING},
+  {"LCASE", TokenType::KEYWORD_LCASE},
+  {"UCASE", TokenType::KEYWORD_UCASE},
 
   // logical
   {"AND", TokenType::KEYWORD_AND},
@@ -169,6 +199,25 @@ Token Lexer::lexIdentifierOrKeyword()
   return makeToken(TokenType::IDENTIFIER, text);
 }
 
+Token Lexer::lexChar()
+{
+  advance();
+  std::string text = "\'";
+
+  while (!isAtEnd() && peek() != '\'' && peek() != '\n')
+  {
+    text += advance();
+  }
+  if (!isAtEnd() && peek() == '\'')
+  {
+    text += advance();
+    if (text.size() == 3)
+      return makeToken(TokenType::CHAR, text);
+  }
+
+  return makeToken(TokenType::UNKNOWN, text);
+}
+
 Token Lexer::lexString()
 {
   advance();
@@ -218,14 +267,55 @@ std::vector<Token> Lexer::tokenize()
     {
       tokens.push_back(lexIdentifierOrKeyword());
     }
+    else if (c == '\'')
+    {
+      tokens.push_back(lexChar());
+    }
     else if (c == '\"')
     {
       tokens.push_back(lexString());
     }
+    else if (c == '^')
+    {
+      advance();
+      tokens.push_back(makeToken(TokenType::POWER, "^"));
+    }
+
+    else if (c == ':')
+    {
+      advance();
+      tokens.push_back(makeToken(TokenType::COLON, ":"));
+    }
+    else if (c == ',')
+    {
+      advance();
+      tokens.push_back(makeToken(TokenType::COMMA, ","));
+    }
+    else if (c == '(')
+    {
+      advance();
+      tokens.push_back(makeToken(TokenType::LPAREN, "("));
+    }
+    else if (c == ')')
+    {
+      advance();
+      tokens.push_back(makeToken(TokenType::RPAREN, ")"));
+    }
+    else if (c == '[')
+    {
+      advance();
+      tokens.push_back(makeToken(TokenType::LBRACKET, "["));
+    }
+    else if (c == ']')
+    {
+      advance();
+      tokens.push_back(makeToken(TokenType::RBRACKET, "]"));
+    }
     else if (c == '>' || c == '<' || c == '=' || c == '+' || c == '-' || c == '*' || c == '/')
     {
       std::string op(1, advance());
-      if (!isAtEnd() && (peek() == '=' || (c == '<' && peek() == '>')))
+      if (!isAtEnd() &&
+          (peek() == '=' || (c == '<' && peek() == '>') || (c == '<' && peek() == '-')))
         op += advance();
 
       if (op == ">")
@@ -248,13 +338,15 @@ std::vector<Token> Lexer::tokenize()
         tokens.push_back(makeToken(TokenType::DIVIDE, op));
       else if (op == "<>")
         tokens.push_back(makeToken(TokenType::NOT_EQUAL, op));
+      else if (op == "<-")
+        tokens.push_back(makeToken(TokenType::ASSIGN, op));
       else
         tokens.push_back(makeToken(TokenType::UNKNOWN, op));
     }
     else if (tryUTF8LeftArrow())
     {
       advanceLeftArrow();
-      tokens.push_back(makeToken(TokenType::ASSIGN, "\u2190"));
+      tokens.push_back(makeToken(TokenType::ASSIGN, "<-"));
     }
     else
     {
