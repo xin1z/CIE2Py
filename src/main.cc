@@ -1,7 +1,9 @@
 #include "lexer/Lexer.h"
+#include "parser/Parser.h"
 
 #include <iostream>
 #include <string>
+#include <utility>
 
 const char *tokenTypeToString(TokenType type) {
   switch (type) {
@@ -195,6 +197,73 @@ const char *tokenTypeToString(TokenType type) {
   return "UNKNOWN";
 }
 
+const char *nodeKindToString(NodeKind kind) {
+  switch (kind) {
+  case NodeKind::PROGRAM:
+    return "PROGRAM";
+  case NodeKind::VARIABLE_DECLARATION:
+    return "VARIABLE_DECLARATION";
+  case NodeKind::CONSTANT_DECLARATION:
+    return "CONSTANT_DECLARATION";
+  case NodeKind::ARRAY_DECLARATION:
+    return "ARRAY_DECLARATION";
+  case NodeKind::ASSIGNMENT:
+    return "ASSIGNMENT";
+  case NodeKind::INPUT:
+    return "INPUT";
+  case NodeKind::OUTPUT:
+    return "OUTPUT";
+  case NodeKind::IF:
+    return "IF";
+  case NodeKind::CASE:
+    return "CASE";
+  case NodeKind::FOR:
+    return "FOR";
+  case NodeKind::WHILE:
+    return "WHILE";
+  case NodeKind::REPEAT:
+    return "REPEAT";
+  case NodeKind::PROCEDURE_DECLARATION:
+    return "PROCEDURE_DECLARATION";
+  case NodeKind::FUNCTION_DECLARATION:
+    return "FUNCTION_DECLARATION";
+  case NodeKind::CALL:
+    return "CALL";
+  case NodeKind::RETURN:
+    return "RETURN";
+  case NodeKind::OPEN_FILE:
+    return "OPEN_FILE";
+  case NodeKind::READ_FILE:
+    return "READ_FILE";
+  case NodeKind::WRITE_FILE:
+    return "WRITE_FILE";
+  case NodeKind::CLOSE_FILE:
+    return "CLOSE_FILE";
+  case NodeKind::INTEGER_LITERAL:
+    return "INTEGER_LITERAL";
+  case NodeKind::REAL_LITERAL:
+    return "REAL_LITERAL";
+  case NodeKind::BOOLEAN_LITERAL:
+    return "BOOLEAN_LITERAL";
+  case NodeKind::CHAR_LITERAL:
+    return "CHAR_LITERAL";
+  case NodeKind::STRING_LITERAL:
+    return "STRING_LITERAL";
+  case NodeKind::VARIABLE:
+    return "VARIABLE";
+  case NodeKind::ARRAY_ACCESS:
+    return "ARRAY_ACCESS";
+  case NodeKind::UNARY:
+    return "UNARY";
+  case NodeKind::BINARY:
+    return "BINARY";
+  case NodeKind::FUNCTION_CALL:
+    return "FUNCTION_CALL";
+  }
+
+  return "UNKNOWN";
+}
+
 int main() {
   const std::string source = R"(// Declarations & Literals Test
 DECLARE score : INTEGER
@@ -257,6 +326,21 @@ CLOSEFILE "out.txt"
                 << tokenTypeToString(token.type) << "\t\"" << token.value
                 << "\"\n";
   }
+
+  Parser parser(std::move(tokens));
+  std::unique_ptr<Program> program = parser.parse();
+
+  if (!parser.errors().empty()) {
+    for (const ParseError &error : parser.errors())
+      std::cerr << error.loc.line << ":" << error.loc.column << ": "
+                << error.message << "\n";
+    return 1;
+  }
+
+  std::cout << "\nParsed " << program->statements.size()
+            << " top-level statement(s)\n";
+  for (const StmtPtr &statement : program->statements)
+    std::cout << "  " << nodeKindToString(statement->kind) << "\n";
 
   return 0;
 }
