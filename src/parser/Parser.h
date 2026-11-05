@@ -13,7 +13,9 @@
 
 struct ParseError
 {
+  // Human-readable message, including the offending token text.
   std::string message;
+  // 1-based line/column of the offending token.
   SourceLocation loc;
 };
 

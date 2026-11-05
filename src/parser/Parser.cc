@@ -225,7 +225,14 @@ StmtPtr Parser::parseStatement()
   if (match(TokenType::KEYWORD_CLOSEFILE))
     return parseCloseFile();
   if (check(TokenType::IDENTIFIER))
-    return parseAssignment();
+  {
+    // Only these two shapes can start an assignment. Anything else is an
+    // unknown keyword/identifier in statement position, so report it here
+    // instead of pointing at the following newline or expression token.
+    const TokenType next = peekAt(1).type;
+    if (next == TokenType::ASSIGN || next == TokenType::LBRACKET)
+      return parseAssignment();
+  }
 
   error(peek(), "expected statement");
 }
@@ -843,6 +850,9 @@ ExprPtr Parser::parseIdentifierExpression(const Token& name)
 ExprPtr Parser::parseBuiltinCall()
 {
   const Token& nameToken = advance();
+  if (!check(TokenType::LPAREN))
+    error(peek(), "expected '(' after " + nameToken.value);
+
   std::vector<ExprPtr> arguments = parseArguments();
   return std::make_unique<FunctionCallExpr>(locationOf(nameToken), nameToken.value,
                                             std::move(arguments));
