@@ -3,10 +3,8 @@
 #include <iostream>
 #include <string>
 
-const char* tokenTypeToString(TokenType type)
-{
-  switch (type)
-  {
+const char *tokenTypeToString(TokenType type) {
+  switch (type) {
   // conditional
   case TokenType::KEYWORD_IF:
     return "KEYWORD_IF";
@@ -49,6 +47,36 @@ const char* tokenTypeToString(TokenType type)
     return "KEYWORD_INPUT";
   case TokenType::KEYWORD_OUTPUT:
     return "KEYWORD_OUTPUT";
+
+  // subprograms
+  case TokenType::KEYWORD_PROCEDURE:
+    return "KEYWORD_PROCEDURE";
+  case TokenType::KEYWORD_ENDPROCEDURE:
+    return "KEYWORD_ENDPROCEDURE";
+  case TokenType::KEYWORD_FUNCTION:
+    return "KEYWORD_FUNCTION";
+  case TokenType::KEYWORD_ENDFUNCTION:
+    return "KEYWORD_ENDFUNCTION";
+  case TokenType::KEYWORD_RETURNS:
+    return "KEYWORD_RETURNS";
+  case TokenType::KEYWORD_CALL:
+    return "KEYWORD_CALL";
+  case TokenType::KEYWORD_RETURN:
+    return "KEYWORD_RETURN";
+
+  // file handling
+  case TokenType::KEYWORD_OPENFILE:
+    return "KEYWORD_OPENFILE";
+  case TokenType::KEYWORD_READFILE:
+    return "KEYWORD_READFILE";
+  case TokenType::KEYWORD_WRITEFILE:
+    return "KEYWORD_WRITEFILE";
+  case TokenType::KEYWORD_CLOSEFILE:
+    return "KEYWORD_CLOSEFILE";
+  case TokenType::KEYWORD_READ:
+    return "KEYWORD_READ";
+  case TokenType::KEYWORD_WRITE:
+    return "KEYWORD_WRITE";
 
   // identifiers and literals
   case TokenType::IDENTIFIER:
@@ -167,8 +195,7 @@ const char* tokenTypeToString(TokenType type)
   return "UNKNOWN";
 }
 
-int main()
-{
+int main() {
   const std::string source = R"(// Declarations & Literals Test
 DECLARE score : INTEGER
 DECLARE name : STRING
@@ -193,20 +220,42 @@ CASE OF grade
   'B': OUTPUT "Good"
   OTHERWISE OUTPUT "Other"
 ENDCASE
+
+// Subprogram Test
+DECLARE Line : STRING
+
+PROCEDURE Greet(Name : STRING)
+  OUTPUT "Hello ", Name
+ENDPROCEDURE
+
+FUNCTION Square(N : INTEGER) RETURNS INTEGER
+  RETURN N * N
+ENDFUNCTION
+
+CALL Greet("CIE")
+
+// File Handling Test
+OPENFILE "data.txt" FOR READ
+READFILE "data.txt", Line
+CLOSEFILE "data.txt"
+
+OPENFILE "out.txt" FOR WRITE
+WRITEFILE "out.txt", Line
+CLOSEFILE "out.txt"
 )";
 
   Lexer lexer(source);
   std::vector<Token> tokens = lexer.tokenize();
 
-  for (const Token& token : tokens)
-  {
+  for (const Token &token : tokens) {
     if (token.type == TokenType::NEWLINE)
-      std::cout << token.line << ":" << token.column << "\t" << tokenTypeToString(token.type)
-                << "\t\"" << "\\n"
+      std::cout << token.line << ":" << token.column << "\t"
+                << tokenTypeToString(token.type) << "\t\"" << "\\n"
                 << "\"\n";
     else
-      std::cout << token.line << ":" << token.column << "\t" << tokenTypeToString(token.type)
-                << "\t\"" << token.value << "\"\n";
+      std::cout << token.line << ":" << token.column << "\t"
+                << tokenTypeToString(token.type) << "\t\"" << token.value
+                << "\"\n";
   }
 
   return 0;

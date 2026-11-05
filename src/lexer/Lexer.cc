@@ -30,6 +30,23 @@ static const std::unordered_map<std::string, TokenType> KEYWORDS = {
   {"INPUT", TokenType::KEYWORD_INPUT},
   {"OUTPUT", TokenType::KEYWORD_OUTPUT},
 
+  // subprograms
+  {"PROCEDURE", TokenType::KEYWORD_PROCEDURE},
+  {"ENDPROCEDURE", TokenType::KEYWORD_ENDPROCEDURE},
+  {"FUNCTION", TokenType::KEYWORD_FUNCTION},
+  {"ENDFUNCTION", TokenType::KEYWORD_ENDFUNCTION},
+  {"RETURNS", TokenType::KEYWORD_RETURNS},
+  {"CALL", TokenType::KEYWORD_CALL},
+  {"RETURN", TokenType::KEYWORD_RETURN},
+
+  // file handling
+  {"OPENFILE", TokenType::KEYWORD_OPENFILE},
+  {"READFILE", TokenType::KEYWORD_READFILE},
+  {"WRITEFILE", TokenType::KEYWORD_WRITEFILE},
+  {"CLOSEFILE", TokenType::KEYWORD_CLOSEFILE},
+  {"READ", TokenType::KEYWORD_READ},
+  {"WRITE", TokenType::KEYWORD_WRITE},
+
   // declaration keywords
   {"DECLARE", TokenType::KEYWORD_DECLARE},
   {"CONSTANT", TokenType::KEYWORD_CONSTANT},
