@@ -13,15 +13,29 @@ namespace
 {
 void printUsage(std::ostream& out)
 {
-  out << "Usage: converter [options] [input.cie]\n"
+  out << "Usage: converter [options] <input.cie>\n"
          "\n"
          "Translate Cambridge IGCSE pseudocode into Python 3.\n"
-         "When no input file is given, or when the input is '-', stdin is read.\n"
+         "\n"
+         "Arguments:\n"
+         "  <input.cie>          Pseudocode source file.\n"
+         "                       Use '-' to read the program from standard input.\n"
          "\n"
          "Options:\n"
-         "  -o, --output <file>  Write the generated Python to <file> (default: stdout)\n"
-         "      --ast            Print the parsed AST instead of the Python program\n"
-         "  -h, --help           Show this help message\n";
+         "  -o, --output <file>  Write the generated Python to <file>.\n"
+         "                       The default is standard output; '-' also means stdout.\n"
+         "      --ast            Print the parsed abstract syntax tree instead of Python.\n"
+         "  -h, --help           Show this help message and exit.\n"
+         "\n"
+         "Examples:\n"
+         "  converter program.cie\n"
+         "  converter program.cie -o program.py\n"
+         "  converter --ast program.cie\n"
+         "  cat program.cie | converter -\n"
+         "\n"
+         "Exit status:\n"
+         "  0  Success.\n"
+         "  1  Invalid arguments, a syntax error in the input, or an I/O error.\n";
 }
 
 std::string readAll(std::istream& input)
@@ -32,6 +46,12 @@ std::string readAll(std::istream& input)
 
 int main(int argc, char** argv)
 {
+  if (argc == 1)
+  {
+    printUsage(std::cout);
+    return 1;
+  }
+
   std::string inputPath;
   std::string outputPath;
   bool printAst = false;
@@ -56,7 +76,8 @@ int main(int argc, char** argv)
     {
       if (i + 1 >= argc)
       {
-        std::cerr << "converter: missing file name after '" << argument << "'\n";
+        std::cerr << "converter: missing file name after '" << argument << "'\n\n";
+        printUsage(std::cerr);
         return 1;
       }
       outputPath = argv[++i];
@@ -65,22 +86,30 @@ int main(int argc, char** argv)
 
     if (!argument.empty() && argument.front() == '-' && argument != "-")
     {
-      std::cerr << "converter: unknown option '" << argument << "'\n";
+      std::cerr << "converter: unknown option '" << argument << "'\n\n";
       printUsage(std::cerr);
       return 1;
     }
 
     if (!inputPath.empty())
     {
-      std::cerr << "converter: more than one input file was given\n";
+      std::cerr << "converter: more than one input file was given\n\n";
+      printUsage(std::cerr);
       return 1;
     }
 
     inputPath = argument;
   }
 
+  if (inputPath.empty())
+  {
+    std::cerr << "converter: no input file was given\n\n";
+    printUsage(std::cerr);
+    return 1;
+  }
+
   std::string source;
-  if (inputPath.empty() || inputPath == "-")
+  if (inputPath == "-")
   {
     source = readAll(std::cin);
   }
@@ -101,18 +130,21 @@ int main(int argc, char** argv)
 
   if (!parser.errors().empty())
   {
-    const std::string displayName = (inputPath.empty() || inputPath == "-") ? "<stdin>" : inputPath;
+    const std::string displayName = inputPath == "-" ? "<stdin>" : inputPath;
     for (const ParseError& error : parser.errors())
     {
       std::cerr << displayName << ":" << error.loc.line << ":" << error.loc.column << ": "
                 << error.message << "\n";
     }
+    std::cerr << "\n";
+    printUsage(std::cerr);
     return 1;
   }
 
   if (!program)
   {
-    std::cerr << "converter: failed to parse the input\n";
+    std::cerr << "converter: failed to parse the input\n\n";
+    printUsage(std::cerr);
     return 1;
   }
 
