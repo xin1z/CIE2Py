@@ -176,6 +176,27 @@ def test_global_declared_after_subprogram(directory):
     assert process.stdout == "5,5\n", process.stdout
 
 
+def test_global_array_lower_bound_after_subprogram(directory):
+    process = convert_and_run(
+        directory,
+        """
+        DECLARE Low : INTEGER
+        Low <- 1
+
+        FUNCTION ReadBack() RETURNS INTEGER
+          RETURN Values[2]
+        ENDFUNCTION
+
+        DECLARE Values : ARRAY[Low:3] OF INTEGER
+        Values[2] <- 5
+        Low <- 0
+        OUTPUT ReadBack()
+        """,
+    )
+    assert process.returncode == 0, process.stderr
+    assert process.stdout == "5\n", process.stdout
+
+
 def test_openfile_evaluates_name_once(directory):
     process = convert_and_run(
         directory,
@@ -341,6 +362,7 @@ def main():
         ("string builtins", test_string_builtins),
         ("div/mod", test_div_and_mod_truncate),
         ("global after subprogram", test_global_declared_after_subprogram),
+        ("global array lower bound", test_global_array_lower_bound_after_subprogram),
         ("openfile once", test_openfile_evaluates_name_once),
         ("array upper bound once", test_array_upper_bound_evaluated_once),
         ("ast output", test_ast_respects_output_option),
