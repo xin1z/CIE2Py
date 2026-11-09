@@ -1,6 +1,6 @@
 #include "ASTPrinter.h"
+#include "LiteralFormat.h"
 
-#include <iomanip>
 #include <ostream>
 #include <sstream>
 
@@ -90,82 +90,6 @@ const char* fileModeName(FileMode mode)
   return "UNKNOWN";
 }
 
-std::string formatReal(double value)
-{
-  std::ostringstream stream;
-  stream << std::defaultfloat << std::setprecision(15) << value;
-  std::string text = stream.str();
-
-  if (text == "inf" || text == "-inf" || text == "nan" || text == "-nan")
-    return text;
-
-  if (text.find_first_of(".eE") == std::string::npos)
-    text += ".0";
-
-  return text;
-}
-
-std::string escapeString(const std::string& value)
-{
-  std::string result;
-  result.reserve(value.size());
-
-  for (char character : value)
-  {
-    switch (character)
-    {
-    case '\\':
-      result += "\\\\";
-      break;
-    case '"':
-      result += "\\\"";
-      break;
-    case '\n':
-      result += "\\n";
-      break;
-    case '\r':
-      result += "\\r";
-      break;
-    case '\t':
-      result += "\\t";
-      break;
-    default:
-      result += character;
-      break;
-    }
-  }
-
-  return result;
-}
-
-std::string escapeChar(char value)
-{
-  switch (value)
-  {
-  case '\\':
-    return "\\\\";
-  case '\'':
-    return "\\'";
-  case '\n':
-    return "\\n";
-  case '\r':
-    return "\\r";
-  case '\t':
-    return "\\t";
-  default:
-    return std::string(1, value);
-  }
-}
-
-std::string quoteString(const std::string& value)
-{
-  return "\"" + escapeString(value) + "\"";
-}
-
-std::string quoteChar(char value)
-{
-  return "'" + escapeChar(value) + "'";
-}
 } // namespace
 
 ASTPrinter::ASTPrinter(std::ostream& out) : out_(out) {}
@@ -461,8 +385,8 @@ void ASTPrinter::printExpr(const Expr& expr, int depth, const std::string& label
   }
   case NodeKind::REAL_LITERAL:
   {
-    const auto& literal = static_cast<const RealLiteralExpr&>(expr);
-    head(depth, label, "REAL_LITERAL value=" + formatReal(literal.value));
+    const auto& real = static_cast<const RealLiteralExpr&>(expr);
+    head(depth, label, "REAL_LITERAL value=" + literal::formatReal(real.value));
     break;
   }
   case NodeKind::BOOLEAN_LITERAL:
@@ -473,14 +397,14 @@ void ASTPrinter::printExpr(const Expr& expr, int depth, const std::string& label
   }
   case NodeKind::CHAR_LITERAL:
   {
-    const auto& literal = static_cast<const CharLiteralExpr&>(expr);
-    head(depth, label, "CHAR_LITERAL value=" + quoteChar(literal.value));
+    const auto& character = static_cast<const CharLiteralExpr&>(expr);
+    head(depth, label, "CHAR_LITERAL value=" + literal::quoteChar(character.value));
     break;
   }
   case NodeKind::STRING_LITERAL:
   {
-    const auto& literal = static_cast<const StringLiteralExpr&>(expr);
-    head(depth, label, "STRING_LITERAL value=" + quoteString(literal.value));
+    const auto& string = static_cast<const StringLiteralExpr&>(expr);
+    head(depth, label, "STRING_LITERAL value=" + literal::quoteString(string.value));
     break;
   }
   case NodeKind::VARIABLE:

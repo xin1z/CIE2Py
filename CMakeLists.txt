@@ -12,6 +12,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(converter
     src/main.cc
     src/ast/ASTPrinter.cc
+    src/ast/LiteralFormat.cc
     src/converter/CodeGenerator.cc
     src/lexer/Lexer.cc
     src/parser/Parser.cc
