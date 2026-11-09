@@ -37,3 +37,20 @@ else()
             -Wpedantic
     )
 endif()
+
+include(CTest)
+
+if(BUILD_TESTING)
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME converter_tests
+            COMMAND
+                ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_tests.py
+                $<TARGET_FILE:converter>
+        )
+    else()
+        message(STATUS "Python3 not found; converter tests will not be registered")
+    endif()
+endif()
