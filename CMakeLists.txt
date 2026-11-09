@@ -23,9 +23,17 @@ target_include_directories(converter
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_compile_options(converter
-    PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
-)
+if(MSVC)
+    target_compile_options(converter
+        PRIVATE
+            /W4
+            /permissive-
+    )
+else()
+    target_compile_options(converter
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+endif()
