@@ -2,6 +2,24 @@
 #include <cctype>
 #include <unordered_map>
 
+namespace
+{
+bool isDigit(char character)
+{
+  return std::isdigit(static_cast<unsigned char>(character)) != 0;
+}
+
+bool isAlpha(char character)
+{
+  return std::isalpha(static_cast<unsigned char>(character)) != 0;
+}
+
+bool isAlphaNumeric(char character)
+{
+  return std::isalnum(static_cast<unsigned char>(character)) != 0;
+}
+} // namespace
+
 static const std::unordered_map<std::string, TokenType> KEYWORDS = {
   // conditional
   {"IF", TokenType::KEYWORD_IF},
@@ -166,7 +184,7 @@ Token Lexer::lexNumber()
 {
   std::string numStr;
 
-  while (!isAtEnd() && std::isdigit(peek()))
+  while (!isAtEnd() && isDigit(peek()))
   {
     numStr += advance();
   }
@@ -175,19 +193,19 @@ Token Lexer::lexNumber()
   {
     numStr += advance();
 
-    if (isAtEnd() || !std::isdigit(peek()))
+    if (isAtEnd() || !isDigit(peek()))
     {
       return makeToken(TokenType::UNKNOWN, numStr);
     }
 
-    while (!isAtEnd() && std::isdigit(peek()))
+    while (!isAtEnd() && isDigit(peek()))
     {
       numStr += advance();
     }
 
     if (!isAtEnd() && peek() == '.')
     {
-      while (!isAtEnd() && (std::isdigit(peek()) || peek() == '.'))
+      while (!isAtEnd() && (isDigit(peek()) || peek() == '.'))
       {
         numStr += advance();
       }
@@ -203,7 +221,7 @@ Token Lexer::lexNumber()
 Token Lexer::lexIdentifierOrKeyword()
 {
   std::string text;
-  while (!isAtEnd() && (std::isalnum(peek()) || peek() == '_'))
+  while (!isAtEnd() && (isAlphaNumeric(peek()) || peek() == '_'))
   {
     text += advance();
   }
@@ -276,11 +294,11 @@ std::vector<Token> Lexer::tokenize()
       tokens.push_back(makeToken(TokenType::NEWLINE, "\n"));
       advance();
     }
-    else if (std::isdigit(c))
+    else if (isDigit(c))
     {
       tokens.push_back(lexNumber());
     }
-    else if (std::isalpha(c) || c == '_')
+    else if (isAlpha(c) || c == '_')
     {
       tokens.push_back(lexIdentifierOrKeyword());
     }
