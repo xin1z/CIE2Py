@@ -20,7 +20,7 @@
 // original program.
 //
 // Identifiers are stored exactly as written. IGCSE identifiers are
-// case-insensitive, so semantic analysis is responsible for normalising them.
+// case-insensitive; the code generator maps them to Python names.
 // Keywords and built-in routine names are also stored as written.
 
 struct SourceLocation
@@ -322,8 +322,7 @@ struct VariableDeclarationStmt : Stmt
   }
 };
 
-// The syllabus only permits a literal as the value of a constant; this is
-// enforced by a later semantic check.
+// The value is kept as an expression; the converter does not validate it.
 struct ConstantDeclarationStmt : Stmt
 {
   std::string name;
@@ -551,8 +550,7 @@ struct CloseFileStmt : Stmt
 // ---------------------------------------------------------------------------
 
 // Procedure and function declarations are ordinary statements at the top of
-// the program body; the syllabus requires them to be defined first, which is
-// checked during semantic analysis.
+// the program body.
 struct Program : Node
 {
   std::vector<StmtPtr> statements;
