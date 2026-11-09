@@ -1,11 +1,10 @@
 #include "CodeGenerator.h"
+#include "ast/LiteralFormat.h"
 
 #include <algorithm>
 #include <cctype>
-#include <cstdio>
-#include <iomanip>
-#include <ostream>
 #include <sstream>
+#include <stdexcept>
 #include <string_view>
 #include <unordered_set>
 #include <utility>
@@ -46,9 +45,10 @@ bool isPythonKeyword(std::string_view name)
 bool isGeneratedName(std::string_view name)
 {
   static const std::unordered_set<std::string_view> generated = {
-    "print",          "input",      "len",      "str",     "int",        "float",
-    "open",           "range",      "random",   "abs",     "_cie_files", "_cie_range",
-    "_cie_substring", "_cie_round", "_cie_div", "_cie_mod"};
+    "print",      "input",      "len",       "str",       "int",         "float",
+    "open",       "range",      "random",    "abs",       "decimal",     "ValueError",
+    "_cie_files", "_cie_range", "_cie_text", "_cie_char", "_cie_random", "_cie_substring",
+    "_cie_round", "_cie_div",   "_cie_mod",  "__debug__"};
 
   return generated.contains(name);
 }
@@ -58,98 +58,9 @@ bool isReservedName(const std::string& name)
   return isPythonKeyword(name) || isGeneratedName(name);
 }
 
-std::string formatReal(double value)
-{
-  std::ostringstream stream;
-  stream << std::defaultfloat << std::setprecision(15) << value;
-  std::string text = stream.str();
-
-  if (text == "inf" || text == "-inf" || text == "nan" || text == "-nan")
-    return "float(\"" + text + "\")";
-
-  if (text.find_first_of(".eE") == std::string::npos)
-    text += ".0";
-
-  return text;
-}
-
-std::string quoteString(const std::string& value)
-{
-  std::string result = "\"";
-  result.reserve(value.size() + 2);
-
-  for (char raw : value)
-  {
-    const unsigned char character = static_cast<unsigned char>(raw);
-    switch (character)
-    {
-    case '\\':
-      result += "\\\\";
-      break;
-    case '"':
-      result += "\\\"";
-      break;
-    case '\n':
-      result += "\\n";
-      break;
-    case '\r':
-      result += "\\r";
-      break;
-    case '\t':
-      result += "\\t";
-      break;
-    default:
-      if (character < 0x20 || character == 0x7F)
-      {
-        char buffer[8];
-        std::snprintf(buffer, sizeof(buffer), "\\x%02x", character);
-        result += buffer;
-      }
-      else
-      {
-        result += raw;
-      }
-      break;
-    }
-  }
-
-  result += '"';
-  return result;
-}
-
-std::string quoteChar(char value)
-{
-  const unsigned char character = static_cast<unsigned char>(value);
-  switch (character)
-  {
-  case '\\':
-    return "'\\\\'";
-  case '\'':
-    return "'\\''";
-  case '\n':
-    return "'\\n'";
-  case '\r':
-    return "'\\r'";
-  case '\t':
-    return "'\\t'";
-  default:
-  {
-    if (character < 0x20 || character == 0x7F)
-    {
-      char buffer[8];
-      std::snprintf(buffer, sizeof(buffer), "'\\x%02x'", character);
-      return buffer;
-    }
-
-    return std::string("'") + value + "'";
-  }
-  }
-}
 } // namespace
 
-CodeGenerator::CodeGenerator(std::ostream& out) : out_(out) {}
-
-void CodeGenerator::generate(const Program& program)
+std::string CodeGenerator::generate(const Program& program)
 {
   body_.str("");
   body_.clear();
@@ -160,6 +71,8 @@ void CodeGenerator::generate(const Program& program)
   usesSubstring_ = false;
   usesDiv_ = false;
   usesMod_ = false;
+  usesText_ = false;
+  usesChar_ = false;
   usesDynamicRange_ = false;
   usesFiles_ = false;
   names_.clear();
@@ -167,6 +80,7 @@ void CodeGenerator::generate(const Program& program)
   scopes_.clear();
   scopes_.push_back({});
 
+  prescanGlobals(program.statements);
   generateStatements(program.statements);
 
   std::ostringstream preamble;
@@ -182,15 +96,13 @@ void CodeGenerator::generate(const Program& program)
   if (!bodyText.empty())
     document << '\n' << bodyText;
 
-  out_ << document.str();
+  return document.str();
 }
 
 std::string CodeGenerator::toString(const Program& program)
 {
-  std::ostringstream stream;
-  CodeGenerator generator(stream);
-  generator.generate(program);
-  return stream.str();
+  CodeGenerator generator;
+  return generator.generate(program);
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +182,75 @@ void CodeGenerator::generateStatements(const std::vector<StmtPtr>& statements)
   }
 }
 
+// Collect module-level declarations before generating any subprogram. This
+// keeps the global-variable analysis independent of source order: the parser
+// does not reject a declaration that appears after a procedure or function.
+void CodeGenerator::prescanGlobals(const std::vector<StmtPtr>& statements)
+{
+  for (const StmtPtr& statementPtr : statements)
+  {
+    const Stmt& statement = *statementPtr;
+    switch (statement.kind)
+    {
+    case NodeKind::VARIABLE_DECLARATION:
+    {
+      const auto& declaration = static_cast<const VariableDeclarationStmt&>(statement);
+      pythonName(declaration.name);
+      Symbol symbol;
+      symbol.type = declaration.type;
+      declare(declaration.name, std::move(symbol));
+      break;
+    }
+    case NodeKind::CONSTANT_DECLARATION:
+    {
+      const auto& declaration = static_cast<const ConstantDeclarationStmt&>(statement);
+      pythonName(declaration.name);
+      declare(declaration.name, Symbol{});
+      break;
+    }
+    case NodeKind::ARRAY_DECLARATION:
+    {
+      const auto& declaration = static_cast<const ArrayDeclarationStmt&>(statement);
+      pythonName(declaration.name);
+      Symbol symbol;
+      symbol.type = declaration.elementType;
+      symbol.isArray = true;
+      for (const ArrayDimension& dimension : declaration.dimensions)
+      {
+        ArrayBound bound;
+        bound.expression = dimension.lower.get();
+        symbol.lowerBounds.push_back(std::move(bound));
+      }
+      declare(declaration.name, std::move(symbol));
+      break;
+    }
+    case NodeKind::IF:
+      prescanGlobals(static_cast<const IfStmt&>(statement).thenBody);
+      prescanGlobals(static_cast<const IfStmt&>(statement).elseBody);
+      break;
+    case NodeKind::CASE:
+    {
+      const auto& caseStatement = static_cast<const CaseStmt&>(statement);
+      for (const CaseClause& clause : caseStatement.clauses)
+        prescanGlobals(clause.body);
+      prescanGlobals(caseStatement.otherwiseBody);
+      break;
+    }
+    case NodeKind::FOR:
+      prescanGlobals(static_cast<const ForStmt&>(statement).body);
+      break;
+    case NodeKind::WHILE:
+      prescanGlobals(static_cast<const WhileStmt&>(statement).body);
+      break;
+    case NodeKind::REPEAT:
+      prescanGlobals(static_cast<const RepeatStmt&>(statement).body);
+      break;
+    default:
+      break;
+    }
+  }
+}
+
 void CodeGenerator::generateBlock(const std::vector<StmtPtr>& statements)
 {
   ++indent_;
@@ -342,8 +323,7 @@ void CodeGenerator::generateStatement(const Stmt& statement)
     generateCloseFile(static_cast<const CloseFileStmt&>(statement));
     break;
   default:
-    line("# Unsupported statement");
-    break;
+    throw std::logic_error("unsupported statement node");
   }
 }
 
@@ -370,11 +350,14 @@ void CodeGenerator::generateArrayDeclaration(const ArrayDeclarationStmt& stateme
   symbol.isArray = true;
 
   std::vector<std::string> lowerBounds;
+  std::vector<std::string> upperBounds;
   lowerBounds.reserve(statement.dimensions.size());
+  upperBounds.reserve(statement.dimensions.size());
 
   for (const ArrayDimension& dimension : statement.dimensions)
   {
     const std::string lower = generateExpression(*dimension.lower);
+    const std::string upper = generateExpression(*dimension.upper);
 
     ArrayBound bound;
     bound.expression = dimension.lower.get();
@@ -391,10 +374,22 @@ void CodeGenerator::generateArrayDeclaration(const ArrayDeclarationStmt& stateme
       lowerBounds.push_back(lower);
     }
 
+    std::int64_t upperValue = 0;
+    if (!foldInteger(*dimension.upper, upperValue))
+    {
+      const std::string capture = freshName("_cie_upper_" + name + "_");
+      line(capture + " = " + upper);
+      upperBounds.push_back(capture);
+    }
+    else
+    {
+      upperBounds.push_back(upper);
+    }
+
     symbol.lowerBounds.push_back(std::move(bound));
   }
 
-  line(name + " = " + arrayInitializer(statement, lowerBounds));
+  line(name + " = " + arrayInitializer(statement, lowerBounds, upperBounds));
   declare(statement.name, std::move(symbol));
 }
 
@@ -422,11 +417,8 @@ void CodeGenerator::generateOutput(const OutputStmt& statement)
     return;
   }
 
-  const std::string arguments = generateArguments(statement.values);
-  if (statement.values.size() == 1)
-    line("print(" + arguments + ")");
-  else
-    line("print(" + arguments + ", sep=\"\")");
+  usesText_ = true;
+  line("_cie_print(" + generateArguments(statement.values) + ")");
 }
 
 void CodeGenerator::generateIf(const IfStmt& statement)
@@ -443,17 +435,15 @@ void CodeGenerator::generateIf(const IfStmt& statement)
 
 void CodeGenerator::generateCase(const CaseStmt& statement)
 {
+  const std::string selector = freshName("_cie_case_");
+  line(selector + " = " + generateExpression(*statement.selector));
+
   if (statement.clauses.empty())
   {
-    if (statement.otherwiseBody.empty())
-      line("pass");
-    else
+    if (!statement.otherwiseBody.empty())
       generateStatements(statement.otherwiseBody);
     return;
   }
-
-  const std::string selector = freshName("_cie_case_");
-  line(selector + " = " + generateExpression(*statement.selector));
 
   for (std::size_t i = 0; i < statement.clauses.size(); ++i)
   {
@@ -658,9 +648,10 @@ void CodeGenerator::generateReturn(const ReturnStmt& statement)
 void CodeGenerator::generateOpenFile(const OpenFileStmt& statement)
 {
   usesFiles_ = true;
-  const std::string key = generateExpression(*statement.fileName);
+  const std::string path = freshName("_cie_file_");
   const std::string mode = statement.mode == FileMode::READ ? "r" : "w";
-  line("_cie_files[" + key + "] = open(" + key + ", \"" + mode + "\")");
+  line(path + " = " + generateExpression(*statement.fileName));
+  line("_cie_files[" + path + "] = open(" + path + ", \"" + mode + "\")");
 }
 
 void CodeGenerator::generateReadFile(const ReadFileStmt& statement)
@@ -674,8 +665,9 @@ void CodeGenerator::generateReadFile(const ReadFileStmt& statement)
 void CodeGenerator::generateWriteFile(const WriteFileStmt& statement)
 {
   usesFiles_ = true;
+  usesText_ = true;
   const std::string key = generateExpression(*statement.fileName);
-  line("_cie_files[" + key + "].write(str(" + generateExpression(*statement.value) +
+  line("_cie_files[" + key + "].write(_cie_text(" + generateExpression(*statement.value) +
        ") + \"\\n\")");
 }
 
@@ -702,16 +694,19 @@ std::string CodeGenerator::generateExpression(const Expr& expression, int minimu
     text = std::to_string(static_cast<const IntegerLiteralExpr&>(expression).value);
     break;
   case NodeKind::REAL_LITERAL:
-    text = formatReal(static_cast<const RealLiteralExpr&>(expression).value);
+  {
+    const auto& real = static_cast<const RealLiteralExpr&>(expression);
+    text = real.text.empty() ? literal::formatReal(real.value) : real.text;
     break;
+  }
   case NodeKind::BOOLEAN_LITERAL:
     text = static_cast<const BooleanLiteralExpr&>(expression).value ? "True" : "False";
     break;
   case NodeKind::CHAR_LITERAL:
-    text = quoteChar(static_cast<const CharLiteralExpr&>(expression).value);
+    text = literal::quoteChar(static_cast<const CharLiteralExpr&>(expression).value);
     break;
   case NodeKind::STRING_LITERAL:
-    text = quoteString(static_cast<const StringLiteralExpr&>(expression).value);
+    text = literal::quoteString(static_cast<const StringLiteralExpr&>(expression).value);
     break;
   case NodeKind::VARIABLE:
     text = pythonName(static_cast<const VariableExpr&>(expression).name);
@@ -831,8 +826,7 @@ std::string CodeGenerator::generateExpression(const Expr& expression, int minimu
     text = generateBuiltinCall(static_cast<const FunctionCallExpr&>(expression));
     break;
   default:
-    text = "None";
-    break;
+    throw std::logic_error("unsupported expression node");
   }
 
   if (precedence < minimumPrecedence)
@@ -911,12 +905,6 @@ std::string CodeGenerator::generateArrayAccess(const ArrayAccessExpr& access)
 std::string CodeGenerator::generateBuiltinCall(const FunctionCallExpr& call)
 {
   const std::string name = toLower(call.name);
-  const auto argument = [this, &call](std::size_t index, int minimumPrecedence = 0) -> std::string
-  {
-    if (index >= call.arguments.size())
-      return "";
-    return generateExpression(*call.arguments[index], minimumPrecedence);
-  };
 
   if (name == "div")
   {
@@ -929,11 +917,11 @@ std::string CodeGenerator::generateBuiltinCall(const FunctionCallExpr& call)
     return "_cie_mod(" + generateArguments(call.arguments) + ")";
   }
   if (name == "length")
-    return "len(" + argument(0) + ")";
+    return "len(" + generateArguments(call.arguments) + ")";
   if (name == "lcase")
-    return argument(0, PRECEDENCE_PRIMARY) + ".lower()";
+    return "str.lower(" + generateArguments(call.arguments) + ")";
   if (name == "ucase")
-    return argument(0, PRECEDENCE_PRIMARY) + ".upper()";
+    return "str.upper(" + generateArguments(call.arguments) + ")";
   if (name == "substring")
   {
     usesSubstring_ = true;
@@ -942,16 +930,12 @@ std::string CodeGenerator::generateBuiltinCall(const FunctionCallExpr& call)
   if (name == "round")
   {
     usesRound_ = true;
-    if (call.arguments.size() >= 2)
-      return "_cie_round(" + argument(0) + ", " + argument(1) + ")";
-    return "_cie_round(" + argument(0) + ")";
+    return "_cie_round(" + generateArguments(call.arguments) + ")";
   }
   if (name == "random")
   {
     usesRandom_ = true;
-    if (call.arguments.empty())
-      return "random.uniform(0, 1)";
-    return "random.randrange(" + argument(0) + ")";
+    return "_cie_random(" + generateArguments(call.arguments) + ")";
   }
 
   return pythonName(call.name) + "(" + generateArguments(call.arguments) + ")";
@@ -1012,7 +996,7 @@ DataType CodeGenerator::targetType(const LValueExpr& target) const
   }
 }
 
-std::string CodeGenerator::inputExpression(DataType type) const
+std::string CodeGenerator::inputExpression(DataType type)
 {
   switch (type)
   {
@@ -1021,7 +1005,8 @@ std::string CodeGenerator::inputExpression(DataType type) const
   case DataType::REAL:
     return "float(input())";
   case DataType::CHAR:
-    return "input()[0]";
+    usesChar_ = true;
+    return "_cie_char(input())";
   case DataType::BOOLEAN:
     return "input().strip().upper() == \"TRUE\"";
   case DataType::STRING:
@@ -1031,7 +1016,7 @@ std::string CodeGenerator::inputExpression(DataType type) const
   return "input()";
 }
 
-std::string CodeGenerator::readExpression(const std::string& stream, DataType type) const
+std::string CodeGenerator::readExpression(const std::string& stream, DataType type)
 {
   switch (type)
   {
@@ -1040,7 +1025,8 @@ std::string CodeGenerator::readExpression(const std::string& stream, DataType ty
   case DataType::REAL:
     return "float(" + stream + ".readline())";
   case DataType::CHAR:
-    return stream + ".readline().rstrip(\"\\r\\n\")[0]";
+    usesChar_ = true;
+    return "_cie_char(" + stream + ".readline().rstrip(\"\\r\\n\"))";
   case DataType::BOOLEAN:
     return stream + ".readline().strip().upper() == \"TRUE\"";
   case DataType::STRING:
@@ -1127,7 +1113,8 @@ std::string CodeGenerator::arrayIndex(const Expr& index, const ArrayBound& lower
 }
 
 std::string CodeGenerator::arrayInitializer(const ArrayDeclarationStmt& statement,
-                                            const std::vector<std::string>& lowerBounds)
+                                            const std::vector<std::string>& lowerBounds,
+                                            const std::vector<std::string>& upperBounds)
 {
   if (statement.dimensions.empty())
     return "[]";
@@ -1138,7 +1125,7 @@ std::string CodeGenerator::arrayInitializer(const ArrayDeclarationStmt& statemen
   {
     const ArrayDimension& dimension = statement.dimensions[i];
     const std::string& lower = lowerBounds.at(i);
-    const std::string upper = generateExpression(*dimension.upper);
+    const std::string& upper = upperBounds.at(i);
 
     std::int64_t lowerValue = 0;
     std::int64_t upperValue = 0;
@@ -1233,10 +1220,48 @@ void CodeGenerator::emitPreamble(std::ostringstream& document) const
     needsSeparator = true;
   }
 
+  if (usesRound_)
+  {
+    document << "import decimal\n";
+    needsSeparator = true;
+  }
+
   if (usesFiles_)
   {
     separate();
     document << "_cie_files = {}\n";
+  }
+
+  if (usesText_)
+  {
+    separate();
+    document << "def _cie_text(value):\n"
+                "    if value is True:\n"
+                "        return \"TRUE\"\n"
+                "    if value is False:\n"
+                "        return \"FALSE\"\n"
+                "    return str(value)\n"
+                "\n"
+                "def _cie_print(*values):\n"
+                "    print(\"\".join(_cie_text(value) for value in values))\n";
+  }
+
+  if (usesChar_)
+  {
+    separate();
+    document << "def _cie_char(text):\n"
+                "    if len(text) == 0:\n"
+                "        raise ValueError(\"expected a character, got an empty string\")\n"
+                "    return text[0]\n";
+  }
+
+  if (usesRandom_)
+  {
+    separate();
+    document << "def _cie_random(n=None):\n"
+                "    if n is None:\n"
+                "        return random.uniform(0, 1)\n"
+                "    return random.randrange(n)\n";
   }
 
   if (usesSubstring_)
@@ -1267,15 +1292,12 @@ void CodeGenerator::emitPreamble(std::ostringstream& document) const
   {
     separate();
     document << "def _cie_round(value, places=0):\n"
-                "    factor = 10 ** places\n"
-                "    scaled = value * factor\n"
-                "    if scaled >= 0:\n"
-                "        rounded = int(scaled + 0.5)\n"
-                "    else:\n"
-                "        rounded = -int(-scaled + 0.5)\n"
+                "    quantum = decimal.Decimal(1).scaleb(-places)\n"
+                "    rounded = decimal.Decimal(str(value)).quantize(quantum, "
+                "rounding=decimal.ROUND_HALF_UP)\n"
                 "    if places <= 0:\n"
-                "        return rounded\n"
-                "    return rounded / factor\n";
+                "        return int(rounded)\n"
+                "    return float(rounded)\n";
   }
 
   if (usesDynamicRange_)

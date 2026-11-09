@@ -4,7 +4,6 @@
 #include "ast/AST.h"
 
 #include <cstdint>
-#include <iosfwd>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -36,9 +35,9 @@
 class CodeGenerator
 {
 public:
-  explicit CodeGenerator(std::ostream& out);
+  CodeGenerator() = default;
 
-  void generate(const Program& program);
+  std::string generate(const Program& program);
 
   static std::string toString(const Program& program);
 
@@ -61,7 +60,6 @@ private:
 
   using Scope = std::unordered_map<std::string, Symbol>;
 
-  std::ostream& out_;
   std::ostringstream body_;
 
   int indent_ = 0;
@@ -71,6 +69,8 @@ private:
   bool usesSubstring_ = false;
   bool usesDiv_ = false;
   bool usesMod_ = false;
+  bool usesText_ = false;
+  bool usesChar_ = false;
   bool usesDynamicRange_ = false;
   bool usesFiles_ = false;
 
@@ -90,6 +90,7 @@ private:
   void generateStatements(const std::vector<StmtPtr>& statements);
   void generateBlock(const std::vector<StmtPtr>& statements);
   void generateStatement(const Stmt& statement);
+  void prescanGlobals(const std::vector<StmtPtr>& statements);
   void generateVariableDeclaration(const VariableDeclarationStmt& statement);
   void generateConstantDeclaration(const ConstantDeclarationStmt& statement);
   void generateArrayDeclaration(const ArrayDeclarationStmt& statement);
@@ -130,11 +131,12 @@ private:
   void blankLine();
   std::string defaultValue(DataType type) const;
   DataType targetType(const LValueExpr& target) const;
-  std::string inputExpression(DataType type) const;
-  std::string readExpression(const std::string& stream, DataType type) const;
+  std::string inputExpression(DataType type);
+  std::string readExpression(const std::string& stream, DataType type);
   std::string arrayIndex(const Expr& index, const ArrayBound& lowerBound);
   std::string arrayInitializer(const ArrayDeclarationStmt& statement,
-                               const std::vector<std::string>& lowerBounds);
+                               const std::vector<std::string>& lowerBounds,
+                               const std::vector<std::string>& upperBounds);
   std::string rangeExpression(const ForStmt& statement);
   bool foldInteger(const Expr& expression, std::int64_t& value) const;
   void emitPreamble(std::ostringstream& document) const;
