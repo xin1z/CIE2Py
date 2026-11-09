@@ -58,6 +58,14 @@ private:
     std::vector<ArrayBound> lowerBounds;
   };
 
+  // Lower-bound capture names assigned by prescanGlobals. Keeping them here
+  // lets subprograms generated before the array declaration refer to the same
+  // variables that the declaration will initialise.
+  struct PendingArray
+  {
+    std::vector<std::string> lowerCaptures;
+  };
+
   using Scope = std::unordered_map<std::string, Symbol>;
 
   std::ostringstream body_;
@@ -77,6 +85,7 @@ private:
   std::unordered_map<std::string, std::string> names_;
   std::unordered_set<std::string> usedNames_;
   std::vector<Scope> scopes_;
+  std::unordered_map<const ArrayDeclarationStmt*, PendingArray> pendingArrays_;
 
   // identifiers and scopes
   std::string pythonName(const std::string& name);

@@ -79,6 +79,7 @@ std::string CodeGenerator::generate(const Program& program)
   usedNames_.clear();
   scopes_.clear();
   scopes_.push_back({});
+  pendingArrays_.clear();
 
   prescanGlobals(program.statements);
   generateStatements(program.statements);
@@ -211,16 +212,32 @@ void CodeGenerator::prescanGlobals(const std::vector<StmtPtr>& statements)
     case NodeKind::ARRAY_DECLARATION:
     {
       const auto& declaration = static_cast<const ArrayDeclarationStmt&>(statement);
-      pythonName(declaration.name);
+      const std::string name = pythonName(declaration.name);
+
       Symbol symbol;
       symbol.type = declaration.elementType;
       symbol.isArray = true;
-      for (const ArrayDimension& dimension : declaration.dimensions)
+
+      PendingArray pending;
+      pending.lowerCaptures.resize(declaration.dimensions.size());
+
+      for (std::size_t i = 0; i < declaration.dimensions.size(); ++i)
       {
+        const ArrayDimension& dimension = declaration.dimensions[i];
         ArrayBound bound;
         bound.expression = dimension.lower.get();
+
+        std::int64_t lowerValue = 0;
+        if (!foldInteger(*dimension.lower, lowerValue))
+        {
+          bound.capture = freshName("_cie_lower_" + name + "_");
+          pending.lowerCaptures[i] = bound.capture;
+        }
+
         symbol.lowerBounds.push_back(std::move(bound));
       }
+
+      pendingArrays_[&declaration] = std::move(pending);
       declare(declaration.name, std::move(symbol));
       break;
     }
@@ -349,13 +366,17 @@ void CodeGenerator::generateArrayDeclaration(const ArrayDeclarationStmt& stateme
   symbol.type = statement.elementType;
   symbol.isArray = true;
 
+  const auto pendingIt = pendingArrays_.find(&statement);
+  const PendingArray* pending = pendingIt == pendingArrays_.end() ? nullptr : &pendingIt->second;
+
   std::vector<std::string> lowerBounds;
   std::vector<std::string> upperBounds;
   lowerBounds.reserve(statement.dimensions.size());
   upperBounds.reserve(statement.dimensions.size());
 
-  for (const ArrayDimension& dimension : statement.dimensions)
+  for (std::size_t i = 0; i < statement.dimensions.size(); ++i)
   {
+    const ArrayDimension& dimension = statement.dimensions[i];
     const std::string lower = generateExpression(*dimension.lower);
     const std::string upper = generateExpression(*dimension.upper);
 
@@ -365,7 +386,12 @@ void CodeGenerator::generateArrayDeclaration(const ArrayDeclarationStmt& stateme
     std::int64_t lowerValue = 0;
     if (!foldInteger(*dimension.lower, lowerValue))
     {
-      bound.capture = freshName("_cie_lower_" + name + "_");
+      if (pending != nullptr && i < pending->lowerCaptures.size() &&
+          !pending->lowerCaptures[i].empty())
+        bound.capture = pending->lowerCaptures[i];
+      else
+        bound.capture = freshName("_cie_lower_" + name + "_");
+
       line(bound.capture + " = " + lower);
       lowerBounds.push_back(bound.capture);
     }
@@ -388,6 +414,9 @@ void CodeGenerator::generateArrayDeclaration(const ArrayDeclarationStmt& stateme
 
     symbol.lowerBounds.push_back(std::move(bound));
   }
+
+  if (pendingIt != pendingArrays_.end())
+    pendingArrays_.erase(pendingIt);
 
   line(name + " = " + arrayInitializer(statement, lowerBounds, upperBounds));
   declare(statement.name, std::move(symbol));
