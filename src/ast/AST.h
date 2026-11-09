@@ -211,9 +211,12 @@ struct IntegerLiteralExpr : Expr
 struct RealLiteralExpr : Expr
 {
   double value;
+  // Original source spelling. The parser fills this in so that the converter
+  // can reproduce real literals exactly instead of formatting the double.
+  std::string text;
 
-  RealLiteralExpr(SourceLocation loc, double value)
-      : Expr(NodeKind::REAL_LITERAL, loc), value(value)
+  RealLiteralExpr(SourceLocation loc, double value, std::string text = {})
+      : Expr(NodeKind::REAL_LITERAL, loc), value(value), text(std::move(text))
   {
   }
 };

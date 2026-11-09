@@ -782,7 +782,8 @@ ExprPtr Parser::parsePrimary()
   if (match(TokenType::REAL))
   {
     const Token& token = previous();
-    return std::make_unique<RealLiteralExpr>(locationOf(token), parseRealLiteral(token));
+    return std::make_unique<RealLiteralExpr>(locationOf(token), parseRealLiteral(token),
+                                             token.value);
   }
 
   if (match(TokenType::STRING))

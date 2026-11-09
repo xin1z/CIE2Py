@@ -386,7 +386,8 @@ void ASTPrinter::printExpr(const Expr& expr, int depth, const std::string& label
   case NodeKind::REAL_LITERAL:
   {
     const auto& real = static_cast<const RealLiteralExpr&>(expr);
-    head(depth, label, "REAL_LITERAL value=" + literal::formatReal(real.value));
+    const std::string text = real.text.empty() ? literal::formatReal(real.value) : real.text;
+    head(depth, label, "REAL_LITERAL value=" + text);
     break;
   }
   case NodeKind::BOOLEAN_LITERAL:
